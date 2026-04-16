@@ -1,0 +1,315 @@
+import pygame
+import os
+import glob
+import sys
+import time
+import threading
+
+# Cấu hình hằng số (Giống Freecell)
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
+PANEL_Y = 600
+
+pygame.init()
+SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Futoshiki Solver")
+
+FONT = pygame.font.SysFont('tahoma', 16)
+ICON_FONT = pygame.font.SysFont('arial', 40)
+LARGE_FONT = pygame.font.SysFont('tahoma', 32, bold=True)
+
+class FutoshikiGame:
+    def __init__(self):
+        self.N = 0
+        self.grid = []
+        self.horiz_constraints = []
+        self.vert_constraints = []
+        self.solved_grid = None
+        
+        self.log = ["Welcome to Futoshiki Solver!", "Select a Testcase to begin."]
+        self.log_offset = 0
+        
+        self.button_highlight_time = {}
+        self.highlight_duration = 0.15
+        self.stop_event = threading.Event()
+        
+        W, H = 110, 35
+        # Cột 1 (X=950), Cột 2 (X=1070)
+        # Hàng 1 (Y=620), Hàng 2 (Y=665)
+        self.buttons = {
+            "Solver": pygame.Rect(950, PANEL_Y + 20, W, H),
+            "Test":   pygame.Rect(1070, PANEL_Y + 20, W, H),
+            "Stop":   pygame.Rect(950, PANEL_Y + 65, W, H),
+            "Quit":   pygame.Rect(1070, PANEL_Y + 65, W, H),
+        }
+        
+        # --- MENU SOLVER (Mọc lên trên nút Solver) ---
+        self.solver_menu_open = False
+        self.solver_selected = "Forward Chaining"
+        algo_names = ["Forward Chaining", "Backward Chaining", "A* Search", "Brute Force"]
+        self.solver_menu = {}
+        for i, algo in enumerate(algo_names):
+            # Tính toán Y để menu mọc ngược lên trên
+            self.solver_menu[algo] = pygame.Rect(950, (PANEL_Y - 120) + i * 32, 160, 30)
+            
+        # --- MENU TEST (Đọc từ folder Inputs) ---
+        self.test_menu_open = False
+        self.test_menu = {}
+        self.test_menu_scroll_offset = 0
+        self.max_visible_tests = 4
+        self.load_testcases_to_menu()
+        
+        self.solver_running = False
+        self.current_test_name = None
+
+        self.MainLoop()
+
+    def load_testcases_to_menu(self):
+        files = sorted(glob.glob(os.path.join("Inputs", "*.txt")))
+        self.test_menu = {os.path.basename(f): f for f in files}
+
+    def parse_input_file(self, filepath):
+        try:
+            with open(filepath, 'r') as f:
+                lines = [line.split('#')[0].strip() for line in f.readlines()]
+                lines = [line for line in lines if line]
+                
+                self.N = int(lines[0])
+                self.grid = [[int(x) for x in lines[i].split(',')] for i in range(1, self.N + 1)]
+                self.horiz_constraints = [[int(x) for x in lines[i].split(',')] for i in range(self.N + 1, 2 * self.N + 1)]
+                self.vert_constraints = [[int(x) for x in lines[i].split(',')] for i in range(2 * self.N + 1, 3 * self.N)]
+            self.solved_grid = None
+            self.log.append(f"Loaded {os.path.basename(filepath)} ({self.N}x{self.N})")
+            self.log_offset = 0
+        except Exception as e:
+            self.log.append(f"Lỗi đọc file: {e}")
+            self.log_offset = 0
+
+    def run_solver_thread(self):
+        # GỌI LOGIC TỪ FILE main.py CỦA BẠN VÀO ĐÂY
+        self.log.append(f"Running {self.solver_selected}...")
+        self.log_offset = 0
+        time.sleep(1) # Giả lập đang chạy thuật toán
+        
+        if self.stop_event.is_set():
+            self.log.append("Solver stopped.")
+        else:
+            self.log.append(f"Solved using {self.solver_selected}!")
+            # Giả lập trả về kết quả
+            self.solved_grid = [[self.grid[r][c] if self.grid[r][c] != 0 else (c+1) for c in range(self.N)] for r in range(self.N)]
+            
+        self.log_offset = 0
+        self.solver_running = False
+
+    def GetClickedElement(self, pos):
+        # Kiểm tra click vào nút Test Menu
+        if self.buttons["Test"].collidepoint(pos):
+            return "BTN_Test"
+            
+        # Kiểm tra click vào nút Solver Menu
+        if self.buttons["Solver"].collidepoint(pos):
+            return "BTN_Solver"
+            
+        # Kiểm tra click menu Test (đang mở)
+        if self.test_menu_open:
+            visible_tests = list(self.test_menu.keys())[self.test_menu_scroll_offset:self.test_menu_scroll_offset + self.max_visible_tests]
+            for idx, test_name in enumerate(visible_tests):
+                rect = pygame.Rect(1050, (PANEL_Y - 130) + idx * 32, 130, 30)
+                if rect.collidepoint(pos):
+                    return f"TEST_{test_name}"
+                    
+        # Kiểm tra click menu Solver (đang mở)
+        if self.solver_menu_open:
+            for algo, rect in self.solver_menu.items():
+                if rect.collidepoint(pos):
+                    return f"ALGO_{algo}"
+                    
+        # Kiểm tra các nút còn lại
+        for name, rect in self.buttons.items():
+            if name not in ["Test", "Solver"] and rect.collidepoint(pos):
+                return f"BTN_{name}"
+                
+        return None
+
+    def MainLoop(self):
+        clock = pygame.time.Clock()
+        while True:
+            mouse_pos = pygame.mouse.get_pos()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); return
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    # Xử lý cuộn chuột
+                    if event.button == 4:  # Scroll up
+                        test_menu_area = pygame.Rect(1050, PANEL_Y - 140, 150, 140)
+                        if self.test_menu_open and test_menu_area.collidepoint(event.pos):
+                            self.test_menu_scroll_offset = max(0, self.test_menu_scroll_offset - 1)
+                        else:
+                            self.log_offset = min(self.log_offset + 1, max(0, len(self.log) - 4))
+                            
+                    elif event.button == 5:  # Scroll down
+                        test_menu_area = pygame.Rect(1050, PANEL_Y - 140, 150, 140)
+                        if self.test_menu_open and test_menu_area.collidepoint(event.pos):
+                            max_offset = max(0, len(self.test_menu) - self.max_visible_tests)
+                            self.test_menu_scroll_offset = min(self.test_menu_scroll_offset + 1, max_offset)
+                        else:
+                            self.log_offset = max(self.log_offset - 1, 0)
+                            
+                    # Xử lý Click trái
+                    elif event.button == 1:
+                        clicked = self.GetClickedElement(event.pos)
+                        
+                        if clicked == "BTN_Test":
+                            self.test_menu_open = not self.test_menu_open
+                            self.solver_menu_open = False
+                            self.button_highlight_time["Test"] = time.time()
+                            
+                        elif clicked == "BTN_Solver":
+                            if not self.solver_running:
+                                self.solver_menu_open = not self.solver_menu_open
+                                self.test_menu_open = False
+                                self.button_highlight_time["Solver"] = time.time()
+                            else:
+                                self.log.append("Cannot change solver while running.")
+                                self.log_offset = 0
+                                
+                        elif clicked == "BTN_Stop":
+                            if self.solver_running:
+                                self.stop_event.set()
+                            self.button_highlight_time["Stop"] = time.time()
+                            
+                        elif clicked == "BTN_Quit":
+                            pygame.quit(); return
+                            
+                        elif clicked and clicked.startswith("TEST_"):
+                            test_name = clicked.replace("TEST_", "")
+                            self.current_test_name = test_name
+                            self.parse_input_file(self.test_menu[test_name])
+                            self.test_menu_open = False
+                            
+                        elif clicked and clicked.startswith("ALGO_"):
+                            algo = clicked.replace("ALGO_", "")
+                            self.solver_selected = algo
+                            self.solver_menu_open = False
+                            if self.N > 0:
+                                self.stop_event.clear()
+                                self.solver_running = True
+                                threading.Thread(target=self.run_solver_thread, daemon=True).start()
+                            else:
+                                self.log.append("Please load a testcase first!")
+                                self.log_offset = 0
+
+            self.UpdateScreen(mouse_pos)
+            clock.tick(60)
+
+    def draw_rounded_rect_with_border(self, surface, rect, bg_color, border_color_outer, border_color_inner):
+        # Nền màu
+        pygame.draw.rect(surface, bg_color, rect, border_radius=5)
+        # Viền ngoài (Hồng đậm)
+        pygame.draw.rect(surface, border_color_outer, rect, 2, border_radius=5)
+        # Viền trong (Trắng)
+        inner_rect = rect.inflate(-4, -4)
+        pygame.draw.rect(surface, border_color_inner, inner_rect, 2, border_radius=3)
+
+    def UpdateScreen(self, mouse_pos):
+        # 1. Background cho phần Bảng Game (Xanh biển đậm thay vì hình ảnh)
+        SCREEN.fill((20, 40, 50)) 
+        
+        # 2. Panel ở dưới cùng
+        pygame.draw.rect(SCREEN, (30, 65, 70), (0, PANEL_Y, SCREEN_WIDTH, 120))
+
+        # --- VẼ NÚT BẤM (Giống y hệt Freecell) ---
+        for name, rect in self.buttons.items():
+            is_highlighted = False
+            if name == "Test" and self.test_menu_open: is_highlighted = True
+            elif name == "Solver" and self.solver_menu_open: is_highlighted = True
+            elif name in self.button_highlight_time:
+                if time.time() - self.button_highlight_time[name] < self.highlight_duration:
+                    is_highlighted = True
+                else: del self.button_highlight_time[name]
+            
+            color = (200, 230, 150) if is_highlighted else (255, 200, 230)
+            self.draw_rounded_rect_with_border(SCREEN, rect, color, (155, 50, 100), (255, 255, 255))
+            
+            text_surf = FONT.render(name, True, (155, 50, 100))
+            SCREEN.blit(text_surf, text_surf.get_rect(center=rect.center))
+
+        # --- VẼ MENU SOLVER ---
+        if self.solver_menu_open:
+            for algo, rect in self.solver_menu.items():
+                color = (200, 230, 150) if self.solver_selected == algo else (255, 200, 230)
+                self.draw_rounded_rect_with_border(SCREEN, rect, color, (155, 50, 100), (255, 255, 255))
+                item_text = FONT.render(algo, True, (155, 50, 100))
+                SCREEN.blit(item_text, item_text.get_rect(center=rect.center))
+
+        # --- VẼ MENU TEST & THANH CUỘN ---
+        if self.test_menu_open:
+            visible_tests = list(self.test_menu.keys())[self.test_menu_scroll_offset:self.test_menu_scroll_offset + self.max_visible_tests]
+            for idx, test_name in enumerate(visible_tests):
+                test_rect = pygame.Rect(1050, (PANEL_Y - 130) + idx * 32, 130, 30)
+                color = (200, 230, 150) if self.current_test_name == test_name else (255, 200, 230)
+                self.draw_rounded_rect_with_border(SCREEN, test_rect, color, (155, 50, 100), (255, 255, 255))
+                item_text = FONT.render(test_name, True, (155, 50, 100))
+                SCREEN.blit(item_text, item_text.get_rect(center=test_rect.center))
+            
+            if len(self.test_menu) > self.max_visible_tests:
+                scroll_bar_x, scroll_bar_y, scroll_bar_w = 1185, PANEL_Y - 130, 8
+                total_h = self.max_visible_tests * 32
+                pygame.draw.rect(SCREEN, (255, 200, 230), (scroll_bar_x, scroll_bar_y, scroll_bar_w, total_h))
+                max_offset = len(self.test_menu) - self.max_visible_tests
+                thumb_h = max(10, int(total_h * self.max_visible_tests / len(self.test_menu)))
+                thumb_pos = scroll_bar_y + (self.test_menu_scroll_offset / max_offset if max_offset > 0 else 0) * (total_h - thumb_h)
+                pygame.draw.rect(SCREEN, (155, 50, 100), (scroll_bar_x, thumb_pos, scroll_bar_w, thumb_h), border_radius=2)
+
+
+        # --- VẼ LƯỚI FUTOSHIKI TRÊN MÀN HÌNH CHÍNH ---
+        if self.N > 0:
+            board_size = min(500, SCREEN_HEIGHT - 160)
+            cell_size = board_size // self.N
+            gap = 15
+            actual_cell = cell_size - gap
+            
+            start_x = (SCREEN_WIDTH - board_size) // 2
+            start_y = (PANEL_Y - board_size) // 2
+
+            for r in range(self.N):
+                for c in range(self.N):
+                    cx = start_x + c * cell_size
+                    cy = start_y + r * cell_size
+
+                    # Dấu < >
+                    if c < self.N - 1 and r < len(self.horiz_constraints):
+                        val = self.horiz_constraints[r][c]
+                        if val != 0:
+                            sign = "<" if val == 1 else ">"
+                            txt = ICON_FONT.render(sign, True, (255, 100, 100))
+                            SCREEN.blit(txt, txt.get_rect(center=(cx + actual_cell + gap//2, cy + actual_cell//2)))
+
+                    # Dấu ^ v
+                    if r < self.N - 1 and r < len(self.vert_constraints):
+                        val = self.vert_constraints[r][c]
+                        if val != 0:
+                            sign = "v" if val == -1 else "^"
+                            txt = ICON_FONT.render(sign, True, (100, 200, 255))
+                            SCREEN.blit(txt, txt.get_rect(center=(cx + actual_cell//2, cy + actual_cell + gap//2)))
+
+                    # Ô vuông bài (Giống style ô Foundation trong Freecell)
+                    cell_rect = pygame.Rect(cx, cy, actual_cell, actual_cell)
+                    self.draw_rounded_rect_with_border(SCREEN, cell_rect, (255, 255, 255), (155, 50, 100), (255, 255, 255))
+                    
+                    val = self.grid[r][c]
+                    is_solved = False
+                    if val == 0 and self.solved_grid:
+                        val = self.solved_grid[r][c]
+                        is_solved = True
+                        
+                    if val != 0:
+                        color = (50, 150, 50) if is_solved else (0, 0, 0)
+                        txt = LARGE_FONT.render(str(val), True, color)
+                        SCREEN.blit(txt, txt.get_rect(center=cell_rect.center))
+
+        pygame.display.update()
+
+if __name__ == "__main__":
+    FutoshikiGame()
