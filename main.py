@@ -1,5 +1,6 @@
 import os
 from kb_generator import KBGenerator
+from a_star import FutoshikiAStar
 
 def parse_input_file(filepath):
     """Đọc và parse file input theo định dạng yêu cầu của đồ án."""
@@ -42,6 +43,10 @@ def build_knowledge_base(N, grid, horiz, vert):
         for j in range(N):
             if vert[i][j] != 0:
                 kb_gen.add_vertical_constraint(i + 1, j + 1, vert[i][j])
+
+    kb_gen.raw_grid = grid
+    kb_gen.raw_horiz = horiz
+    kb_gen.raw_vert = vert
                 
     return kb_gen
 
@@ -66,7 +71,25 @@ def solve_a_star(kb_gen):
     TODO: Triển khai thuật toán A* với heuristic
     """
     print("Running A* Search...")
-    pass
+    N, grid, horiz, vert = kb_gen.N, kb_gen.raw_grid, kb_gen.raw_horiz, kb_gen.raw_vert
+    
+    solver = FutoshikiAStar(N, grid, horiz, vert)
+    data = solver.solve()
+
+    if data:
+        print("\n" + "="*40)
+        print(f"{'THÔNG SỐ HIỆU NĂNG A*':^40}")
+        print("="*40)
+        print(f"1. Thời gian chạy:    {data['time']:.6f} giây")
+        print(f"2. Số nút đã mở rộng: {data['nodes']} nút")
+        print(f"3. Bộ nhớ tiêu thụ:   {data['memory']:.4f} MB")
+        print("-" * 40)
+        print("KẾT QUẢ BẢNG:")
+        for row in data['result']:
+            print(f"   {row}")
+        print("="*40)
+    else:
+        print("Không tìm thấy lời giải.")
 
 def solve_brute_force(kb_gen):
     """
