@@ -42,51 +42,64 @@ class FutoshikiAStar:
         start_time = time.perf_counter()
         mem_before = self.get_mem_usage()
         
-        # Tối ưu nhược điểm 3: Tie-breaking bằng cách thêm ID tự tăng và ưu tiên g
         node_count = 0
         h_start = sum(row.count(0) for row in self.grid)
+        # f = g + h, -g dùng để tie-break ưu tiên độ sâu
         pq = [(h_start, 0, node_count, self.grid)]
-        max_mem = mem_before
 
         while pq:
             f, neg_g, _, curr_board = heapq.heappop(pq)
             g = -neg_g
             self.nodes_expanded += 1
             
-            # Tối ưu nhược điểm 4: Ngắt sớm nếu bảng quá nhỏ hoặc giải xong nhanh
-            if self.nodes_expanded > 5000: break
+            # --- ĐIỀU KIỆN THẮNG (SỬA Ở ĐÂY) ---
+            # Chỉ dừng khi bảng thực sự đầy (không còn số 0)
+            if all(0 not in row for row in curr_board):
+                return {
+                    "result": curr_board, 
+                    "nodes": self.nodes_expanded, 
+                    "time": time.perf_counter() - start_time, 
+                    "memory": self.get_mem_usage() - mem_before
+                }
+
+            # Tăng giới hạn nút lên để thuật toán có không gian tìm kiếm
+            if self.nodes_expanded > 20000: 
+                break 
 
             best_cell = None
             min_domain_size = float('inf')
+            candidates = []
 
-            # Tối ưu nhược điểm 1: Tìm MRV nhanh hơn
+            # --- MRV LOGIC ---
             for r in range(self.n):
                 for c in range(self.n):
                     if curr_board[r][c] == 0:
                         domain = self.get_domain(r, c, curr_board)
                         d_size = len(domain)
-                        if d_size == 0: # Cắt tỉa ngay
+                        
+                        if d_size == 0: # Nhánh này bị lỗi, domain rỗng
                             min_domain_size = 0
                             break
+                        
                         if d_size < min_domain_size:
                             min_domain_size = d_size
                             best_cell = (r, c)
                             candidates = domain
-                        if d_size == 1: break
-                if min_domain_size <= 1: break
+                        if d_size == 1: break 
+                if min_domain_size == 0 or (best_cell and min_domain_size == 1): 
+                    break
 
-            if not best_cell:
-                return {"result": curr_board, "nodes": self.nodes_expanded, 
-                        "time": time.perf_counter() - start_time, "memory": self.get_mem_usage() - mem_before}
-
-            if min_domain_size == 0: continue
+            # --- QUAY LUI (SỬA Ở ĐÂY) ---
+            # Nếu không tìm thấy ô nào để điền tiếp hoặc ô đó bị "tịt" (domain=0)
+            # THÌ PHẢI BỎ QUA để lấy nút khác từ PQ, không được return dở dang
+            if min_domain_size == 0 or best_cell is None:
+                continue
 
             r, c = best_cell
             for val in candidates:
                 new_board = [row[:] for row in curr_board]
                 new_board[r][c] = val
                 node_count += 1
-                # Tối ưu nhược điểm 2: h(n) đơn giản kết hợp MRV mạnh
                 h = sum(row.count(0) for row in new_board)
                 heapq.heappush(pq, (g + 1 + h, -(g + 1), node_count, new_board))
         
