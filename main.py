@@ -120,8 +120,8 @@ def main():
                 print(f"Khởi tạo Knowledge Base thành công với {len(kb_gen.get_kb())} mệnh đề (clauses).")
                 
                 # Tại đây có thể thêm logic dùng argument từ command line để chọn thuật toán
-                # Hiện tại gọi thử stub của Forward Chaining
-                solve_forward_chaining(kb_gen)
+                # Hiện tại gọi thử stub của A*
+                solve_a_star(kb_gen)
                 
                 # TODO: Format lại kết quả đầu ra theo yêu cầu và ghi vào thư mục Outputs
                 
