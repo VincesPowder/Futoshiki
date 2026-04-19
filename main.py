@@ -2,6 +2,7 @@ import os
 from kb_generator import KBGenerator
 from a_star import FutoshikiAStar
 from baseline_solvers import FutoshikiBaseline
+from forward_chaining import ForwardChaining, format_solution as fc_format
 
 def parse_input_file(filepath):
     """Đọc và parse file input theo định dạng yêu cầu của đồ án."""
@@ -10,6 +11,10 @@ def parse_input_file(filepath):
         lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
     
     N = int(lines[0])
+
+    # Thêm int(x.strip()) để xử lý "0, 1, 0" lẫn "0,1,0"
+    def parse_row(line):
+        return [int(x.strip()) for x in line.split(',')]
     
     # Đọc lưới giá trị ban đầu (Grid)
     grid = [list(map(int, line.split(','))) for line in lines[1:N+1]]
@@ -52,6 +57,30 @@ def build_knowledge_base(N, grid, horiz, vert):
     return kb_gen
 
 # ==========================================
+def solve_forward_chaining(kb_gen):
+    """
+    TODO: Triển khai thuật toán Forward Chaining
+    Sinh viên được giao task này sẽ implement thuật toán tại đây.
+    """
+    print("Running Forward Chaining...")
+    solver = ForwardChaining(kb_gen.N, kb_gen.raw_grid, kb_gen.raw_horiz, kb_gen.raw_vert)
+    data = solver.solve()  # trả về dict: result, time, inferences, memory, success
+    
+    if data and data['success']:
+        print("\n" + "="*40)
+        print(f"{'THÔNG SỐ HIỆU NĂNG FORWARD CHAINING':^40}")
+        print("="*40)
+        print(f"1. Thời gian chạy:  {data['time']:.6f} giây")
+        print(f"2. Số suy diễn:     {data['inferences']} lần")
+        print(f"3. Bộ nhớ tiêu thụ: {data['memory']:.4f} MB")
+        print("-" * 40)
+        print("KẾT QUẢ BẢNG:")
+        for row in data['result']:
+            print(f"   {row}")
+        print("="*40)
+    else:
+        print("Không tìm thấy lời giải.")
+    pass
 
 def solve_backward_chaining(kb_gen):
     """
