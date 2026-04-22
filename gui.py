@@ -12,7 +12,6 @@ from backward_chaining import BackwardChainingSolver
 from kb_generator import KBGenerator
 # ---------------------------------------------
 
-# Cấu hình hằng số (Giống Freecell)
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 PANEL_Y = 600
@@ -49,14 +48,14 @@ class FutoshikiGame:
         self.highlight_duration = 0.15
         self.stop_event = threading.Event()
         
-        W, H = 110, 35
+        W, H = 130, 45
         # Cột 1 (X=950), Cột 2 (X=1070)
         # Hàng 1 (Y=620), Hàng 2 (Y=665)
         self.buttons = {
-            "Solver": pygame.Rect(950, PANEL_Y + 20, W, H),
-            "Test":   pygame.Rect(1070, PANEL_Y + 20, W, H),
-            "Stop":   pygame.Rect(950, PANEL_Y + 65, W, H),
-            "Quit":   pygame.Rect(1070, PANEL_Y + 65, W, H),
+            "Solver": pygame.Rect(940, PANEL_Y + 10, W, H),
+            "Test":   pygame.Rect(1090, PANEL_Y + 10, W, H),
+            "Restart": pygame.Rect(940, PANEL_Y + 65, W, H),
+            "Quit":   pygame.Rect(1090, PANEL_Y + 65, W, H),
         }
         
         # --- MENU SOLVER (Mọc lên trên nút Solver) ---
@@ -65,8 +64,8 @@ class FutoshikiGame:
         algo_names = ["Forward Chaining", "Backward Chaining", "A* Search", "Brute Force"]
         self.solver_menu = {}
         for i, algo in enumerate(algo_names):
-            # Tính toán Y để menu mọc ngược lên trên
-            self.solver_menu[algo] = pygame.Rect(950, (PANEL_Y - 120) + i * 32, 160, 30)
+            # Căn chỉnh theo X=940 của nút Solver
+            self.solver_menu[algo] = pygame.Rect(940, (PANEL_Y - 130) + i * 32, 160, 30)
             
         # --- MENU TEST (Đọc từ folder Inputs) ---
         self.test_menu_open = False
@@ -111,8 +110,8 @@ class FutoshikiGame:
         # 4. Vẽ thanh cuộn (Scrollbar) nếu có nhiều hơn 4 dòng
         if total_logs > self.max_log_lines:
             sb_width = 12
-            # Đặt thanh cuộn sát lề phải, lùi vào 4px
-            sb_rect = pygame.Rect(self.log_rect.right - sb_width - 4, self.log_rect.y + 4, sb_width, self.log_rect.height - 8)
+            # Đặt thanh cuộn sát lề phải, lùi vào 12px
+            sb_rect = pygame.Rect(self.log_rect.right - sb_width - 12, self.log_rect.y + 4, sb_width, self.log_rect.height - 8)
             
             # Nền xám nhạt của thanh cuộn
             pygame.draw.rect(SCREEN, (240, 240, 240), sb_rect, border_radius=4) 
@@ -232,7 +231,7 @@ class FutoshikiGame:
         if self.test_menu_open:
             visible_tests = list(self.test_menu.keys())[self.test_menu_scroll_offset:self.test_menu_scroll_offset + self.max_visible_tests]
             for idx, test_name in enumerate(visible_tests):
-                rect = pygame.Rect(1050, (PANEL_Y - 130) + idx * 32, 130, 30)
+                rect = pygame.Rect(1090, (PANEL_Y - 130) + idx * 32, 130, 30)
                 if rect.collidepoint(pos):
                     return f"TEST_{test_name}"
                     
@@ -261,7 +260,7 @@ class FutoshikiGame:
                     # Xử lý cuộn chuột
                     # Xử lý cuộn chuột
                     if event.button == 4:  # Scroll up
-                        test_menu_area = pygame.Rect(1050, PANEL_Y - 140, 150, 140)
+                        test_menu_area = pygame.Rect(1090, PANEL_Y - 140, 150, 140)
                         if self.test_menu_open and test_menu_area.collidepoint(event.pos):
                             self.test_menu_scroll_offset = max(0, self.test_menu_scroll_offset - 1)
                         # Cuộn log (nếu trỏ chuột vào log)
@@ -295,10 +294,20 @@ class FutoshikiGame:
                                 self.log.append("Cannot change solver while running.")
                                 self.log_offset = 0
                                 
-                        elif clicked == "BTN_Stop":
+                        elif clicked == "BTN_Restart":
+                            # Nếu thuật toán đang chạy, dừng nó lại
                             if self.solver_running:
                                 self.stop_event.set()
-                            self.button_highlight_time["Stop"] = time.time()
+                            
+                            # Tải lại testcase nếu đã có testcase được chọn
+                            if self.current_test_name:
+                                self.parse_input_file(self.test_menu[self.current_test_name])
+                                self.log.append(f"Restarted testcase: {self.current_test_name}")
+                            else:
+                                self.log.append("Vui lòng chọn testcase trước khi Restart!")
+                                
+                            self.log_offset = 0
+                            self.button_highlight_time["Restart"] = time.time()
                             
                         elif clicked == "BTN_Quit":
                             pygame.quit(); return
@@ -340,7 +349,7 @@ class FutoshikiGame:
         # 2. Panel ở dưới cùng
         pygame.draw.rect(SCREEN, (30, 65, 70), (0, PANEL_Y, SCREEN_WIDTH, 120))
 
-        # --- VẼ NÚT BẤM (Giống y hệt Freecell) ---
+        # --- VẼ NÚT BẤM
         for name, rect in self.buttons.items():
             is_highlighted = False
             if name == "Test" and self.test_menu_open: is_highlighted = True
@@ -368,14 +377,14 @@ class FutoshikiGame:
         if self.test_menu_open:
             visible_tests = list(self.test_menu.keys())[self.test_menu_scroll_offset:self.test_menu_scroll_offset + self.max_visible_tests]
             for idx, test_name in enumerate(visible_tests):
-                test_rect = pygame.Rect(1050, (PANEL_Y - 130) + idx * 32, 130, 30)
+                test_rect = pygame.Rect(1090, (PANEL_Y - 130) + idx * 32, 130, 30)
                 color = (200, 230, 150) if self.current_test_name == test_name else (255, 200, 230)
                 self.draw_rounded_rect_with_border(SCREEN, test_rect, color, (155, 50, 100), (255, 255, 255))
                 item_text = FONT.render(test_name, True, (155, 50, 100))
                 SCREEN.blit(item_text, item_text.get_rect(center=test_rect.center))
             
             if len(self.test_menu) > self.max_visible_tests:
-                scroll_bar_x, scroll_bar_y, scroll_bar_w = 1185, PANEL_Y - 130, 8
+                scroll_bar_x, scroll_bar_y, scroll_bar_w = 1225, PANEL_Y - 130, 8
                 total_h = self.max_visible_tests * 32
                 pygame.draw.rect(SCREEN, (255, 200, 230), (scroll_bar_x, scroll_bar_y, scroll_bar_w, total_h))
                 max_offset = len(self.test_menu) - self.max_visible_tests
@@ -394,28 +403,13 @@ class FutoshikiGame:
             start_x = (SCREEN_WIDTH - board_size) // 2
             start_y = (PANEL_Y - board_size) // 2
 
+            # VÒNG LẶP 1: Vẽ tất cả các ô vuông trắng và số trước
             for r in range(self.N):
                 for c in range(self.N):
                     cx = start_x + c * cell_size
                     cy = start_y + r * cell_size
 
-                    # Dấu < >
-                    if c < self.N - 1 and r < len(self.horiz_constraints):
-                        val = self.horiz_constraints[r][c]
-                        if val != 0:
-                            sign = "<" if val == 1 else ">"
-                            txt = ICON_FONT.render(sign, True, (255, 100, 100))
-                            SCREEN.blit(txt, txt.get_rect(center=(cx + actual_cell + gap//2, cy + actual_cell//2)))
-
-                    # Dấu ^ v
-                    if r < self.N - 1 and r < len(self.vert_constraints):
-                        val = self.vert_constraints[r][c]
-                        if val != 0:
-                            sign = "v" if val == -1 else "^"
-                            txt = ICON_FONT.render(sign, True, (100, 200, 255))
-                            SCREEN.blit(txt, txt.get_rect(center=(cx + actual_cell//2, cy + actual_cell + gap//2)))
-
-                    # Ô vuông bài (Giống style ô Foundation trong Freecell)
+                    # Ô vuông bài
                     cell_rect = pygame.Rect(cx, cy, actual_cell, actual_cell)
                     self.draw_rounded_rect_with_border(SCREEN, cell_rect, (255, 255, 255), (155, 50, 100), (255, 255, 255))
                     
@@ -429,7 +423,63 @@ class FutoshikiGame:
                         color = (50, 150, 50) if is_solved else (0, 0, 0)
                         txt = LARGE_FONT.render(str(val), True, color)
                         SCREEN.blit(txt, txt.get_rect(center=cell_rect.center))
-                        
+
+            # VÒNG LẶP 2: Vẽ các dấu bất đẳng thức bằng Line để nét như chữ mà canh giữa tuyệt đối
+            for r in range(self.N):
+                for c in range(self.N):
+                    cx = start_x + c * cell_size
+                    cy = start_y + r * cell_size
+
+                    # Dấu ngang < >
+                    if c < self.N - 1 and r < len(self.horiz_constraints):
+                        val = self.horiz_constraints[r][c]
+                        if val != 0:
+                            center_x = cx + actual_cell + gap // 2
+                            center_y = cy + actual_cell // 2
+                            color = (255, 100, 100) # Đỏ hồng
+                            
+                            # Kích thước ký hiệu (Rộng 10, Cao 14)
+                            tw, th = 10, 14 
+                            
+                            if val == 1: # Dấu '<'
+                                points = [
+                                    (center_x + tw//2, center_y - th//2), # Góc trên phải
+                                    (center_x - tw//2, center_y),         # Mũi nhọn bên trái
+                                    (center_x + tw//2, center_y + th//2)  # Góc dưới phải
+                                ]
+                            else: # Dấu '>'
+                                points = [
+                                    (center_x - tw//2, center_y - th//2), # Góc trên trái
+                                    (center_x + tw//2, center_y),         # Mũi nhọn bên phải
+                                    (center_x - tw//2, center_y + th//2)  # Góc dưới trái
+                                ]
+                            # Tham số 'False' nghĩa là vẽ đường nét mở (không bị đóng lại thành tam giác)
+                            pygame.draw.lines(SCREEN, color, False, points, 3)
+
+                    # Dấu dọc ^ v
+                    if r < self.N - 1 and r < len(self.vert_constraints):
+                        val = self.vert_constraints[r][c]
+                        if val != 0:
+                            center_x = cx + actual_cell // 2
+                            center_y = cy + actual_cell + gap // 2
+                            color = (100, 200, 255) # Xanh dương
+                            
+                            # Kích thước ký hiệu lật ngược lại (Rộng 14, Cao 10)
+                            tw, th = 14, 10 
+                            
+                            if val == 1: # Dấu '^'
+                                points = [
+                                    (center_x - tw//2, center_y + th//2), # Góc dưới trái
+                                    (center_x, center_y - th//2),         # Mũi nhọn bên trên
+                                    (center_x + tw//2, center_y + th//2)  # Góc dưới phải
+                                ]
+                            else: # Dấu 'v'
+                                points = [
+                                    (center_x - tw//2, center_y - th//2), # Góc trên trái
+                                    (center_x, center_y + th//2),         # Mũi nhọn bên dưới
+                                    (center_x + tw//2, center_y - th//2)  # Góc trên phải
+                                ]
+                            pygame.draw.lines(SCREEN, color, False, points, 3)
         # --- VẼ LOG PANEL ---
         self.draw_log_screen()
 
