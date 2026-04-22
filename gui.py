@@ -65,7 +65,26 @@ class FutoshikiGame:
         self.solver_menu = {}
         for i, algo in enumerate(algo_names):
             # Căn chỉnh theo X=940 của nút Solver
-            self.solver_menu[algo] = pygame.Rect(940, (PANEL_Y - 130) + i * 32, 160, 30)
+            self.solver_menu[algo] = pygame.Rect(940, (PANEL_Y - 130) + i * 32, 160, 30)# Tăng W lên 145 để chứa vừa chữ "Backward Chaining"
+        W, H = 145, 45 
+        
+        # Dời X của cột 1 sang 930 một chút để lấy chỗ cho nút to ra
+        # Cột 2 vẫn giữ ở 1090
+        self.buttons = {
+            "Solver":  pygame.Rect(930, PANEL_Y + 10, W, H),
+            "Test":    pygame.Rect(1090, PANEL_Y + 10, W, H),
+            "Restart": pygame.Rect(930, PANEL_Y + 65, W, H),
+            "Quit":    pygame.Rect(1090, PANEL_Y + 65, W, H),
+        }
+        
+        # --- MENU SOLVER ---
+        self.solver_menu_open = False
+        self.solver_selected = "Forward Chaining"
+        algo_names = ["Forward Chaining", "Backward Chaining", "A* Search", "Brute Force"]
+        self.solver_menu = {}
+        for i, algo in enumerate(algo_names):
+            # Quan trọng: Dùng tọa độ X (930) và chiều rộng W giống y hệt nút Solver!
+            self.solver_menu[algo] = pygame.Rect(930, (PANEL_Y - 130) + i * 32, W, 30)
             
         # --- MENU TEST (Đọc từ folder Inputs) ---
         self.test_menu_open = False
@@ -343,12 +362,26 @@ class FutoshikiGame:
         pygame.draw.rect(surface, border_color_inner, inner_rect, 2, border_radius=3)
 
     def UpdateScreen(self, mouse_pos):
-        # 1. Background cho phần Bảng Game (Xanh biển đậm thay vì hình ảnh)
-        SCREEN.fill((20, 40, 50)) 
+        # 1. Background cho toàn bộ màn hình
+        bg_dark = (20, 40, 50)
+        SCREEN.fill(bg_dark) 
         
-        # 2. Panel ở dưới cùng
+        # 2. Panel ở dưới cùng (khu vực chứa menu, log)
         pygame.draw.rect(SCREEN, (30, 65, 70), (0, PANEL_Y, SCREEN_WIDTH, 120))
 
+        board_size = min(500, SCREEN_HEIGHT - 160)
+        start_x = (SCREEN_WIDTH - board_size) // 2
+        start_y = (PANEL_Y - board_size) // 2
+
+        hole_padding = 15 # Tạo khoảng lề 15px cho bàn cờ thở
+        hole_rect = pygame.Rect(start_x - hole_padding, start_y - hole_padding, board_size + hole_padding, board_size + hole_padding)
+        self.draw_rounded_rect_with_border(SCREEN, hole_rect, (30, 65, 70), (155, 50, 100), (255, 255, 255))
+        
+        welcome_font = pygame.font.SysFont('trebuchet ms', 70, bold=True, italic=True)
+        welcome_surf = welcome_font.render("WELCOME!", True, (70, 90, 110))
+        welcome_surf.set_alpha(100) 
+        text_rect = welcome_surf.get_rect(center=hole_rect.center)
+        SCREEN.blit(welcome_surf, text_rect)
         # --- VẼ NÚT BẤM
         for name, rect in self.buttons.items():
             is_highlighted = False
