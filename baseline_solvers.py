@@ -3,7 +3,7 @@ import psutil
 import os
 
 class FutoshikiBaseline:
-    def __init__(self, N, grid, horiz, vert, time_limit=10):
+    def __init__(self, N, grid, horiz, vert, time_limit=30):
         """
         Khởi tạo solver với giới hạn thời gian chạy.
         time_limit: Thời gian tối đa cho phép (giây). 
