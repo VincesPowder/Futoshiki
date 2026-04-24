@@ -1,7 +1,7 @@
 import heapq 
 import time
 import os
-import psutil
+import tracemalloc
 
 class FutoshikiAStar:
     def __init__(self, n, grid, horiz, vert):
@@ -10,7 +10,6 @@ class FutoshikiAStar:
         self.horiz = horiz
         self.vert = vert
         self.nodes_expanded = 0
-        self.process = psutil.Process(os.getpid())
         self.degrees = [[self._calculate_degree(r, c) for c in range(n)] for r in range(n)]
 
     def _calculate_degree(self, r, c):
@@ -21,8 +20,6 @@ class FutoshikiAStar:
         if r < self.n - 1 and self.vert[r][c] != 0: deg += 1
         return deg
 
-    def get_mem_usage(self):
-        return self.process.memory_info().rss / (1024 * 1024)
 
     def is_valid(self, r, c, val, board):
         for i in range(self.n):
@@ -38,8 +35,8 @@ class FutoshikiAStar:
         return [v for v in range(1, self.n + 1) if self.is_valid(r, c, v, board)]
 
     def solve(self):
+        tracemalloc.start()
         start_time = time.perf_counter()
-        mem_before = self.get_mem_usage()
         
         node_count = 0
         # Chuyển bảng về dạng tuple 1D để tối ưu bộ nhớ và tốc độ so sánh
@@ -55,12 +52,16 @@ class FutoshikiAStar:
             
             # 1. ĐIỀU KIỆN THẮNG: Chỉ thắng khi không còn số 0
             if 0 not in curr_board:
+                # LẤY ĐỈNH BỘ NHỚ VÀ DỪNG ĐO
+                _, peak = tracemalloc.get_traced_memory() 
+                tracemalloc.stop()
                 res_2d = [list(curr_board[i:i+self.n]) for i in range(0, len(curr_board), self.n)]
                 return {
+                    "success": True,
                     "result": res_2d, 
                     "nodes": self.nodes_expanded, 
                     "time": time.perf_counter() - start_time, 
-                    "memory": self.get_mem_usage() - mem_before
+                    "memory": peak / 1024
                 }
 
             self.nodes_expanded += 1
@@ -116,6 +117,7 @@ class FutoshikiAStar:
                     h = new_board.count(0)
                     heapq.heappush(pq, (g + 1 + h, -(g + 1), node_count, new_board))
         
+        tracemalloc.stop()
         return None
 
     def is_valid_1d(self, idx, val, board_1d):

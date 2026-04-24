@@ -59,8 +59,8 @@ def write_performance_log(log_path, filename, solver_name, data):
         f.write(f"  Solved: {is_solved}\n")
         f.write(f"  Solution length: {sol_length}\n")
         f.write(f"  Expanded nodes: {data.get('nodes', 0)}\n")
-        f.write(f"  Search time: {data.get('time', 0):.4f}s\n")
-        f.write(f"  Memory used: {data.get('memory', 0):.4f}MB\n")
+        f.write(f"  Search time: {data.get('time', 0) * 1000:.2f}ms\n")
+        f.write(f"  Memory used: {data.get('memory', 0):.4f}KB\n")
         f.write("-" * 40 + "\n")
 
 def export_output(output_dir, filename, result, horiz, vert, N):
@@ -101,16 +101,16 @@ def main():
                 N, grid, horiz, vert = parse_input_file(filepath)
                 kb_gen = build_knowledge_base(N, grid, horiz, vert)
                 # (Không in log hiệu năng cho bước này vì đây là bước chuẩn bị KB)
-
-                # BƯỚC 3: PROLOG-STYLE BACKWARD CHAINING
-                bc_solver = BackwardChainingSolver(kb_gen)
-                bc_data = bc_solver.run(test_label=filename)
-                write_performance_log(summary_log, filename, "Backward Chaining", bc_data)
-
-                # BƯỚC 4: FORWARD CHAINING
+                
+                # BƯỚC 3: FORWARD CHAINING
                 fc = ForwardChaining(N, grid, horiz, vert)
                 fc_data = fc.solve()
                 write_performance_log(summary_log, filename, "Forward Chaining", fc_data)
+
+                # BƯỚC 4: PROLOG-STYLE BACKWARD CHAINING
+                bc_solver = BackwardChainingSolver(kb_gen)
+                bc_data = bc_solver.run(test_label=filename)
+                write_performance_log(summary_log, filename, "Backward Chaining", bc_data)  
 
                 # BƯỚC 5: A* GUIDED SEARCH
                 astar = FutoshikiAStar(N, grid, horiz, vert)
@@ -120,18 +120,28 @@ def main():
                 # BƯỚC 6: BRUTE-FORCE & BACKTRACKING (BASELINE)
                 baseline = FutoshikiBaseline(N, grid, horiz, vert)
                 
-                # 6.1 Brute-force
+                # 6.1 Backtracking
+                bt_data = baseline.run(mode="backtracking")
+                write_performance_log(summary_log, filename, "Backtracking", bt_data)
+                
+                # 6.2 Brute-force
                 bf_data = baseline.run(mode="brute_force")
                 write_performance_log(summary_log, filename, "Brute-force", bf_data)
                 
-                # 6.2 Backtracking
-                bt_data = baseline.run(mode="backtracking")
-                write_performance_log(summary_log, filename, "Backtracking", bt_data)
+                
 
-                # Xuất file Output mẫu (Lấy từ Backtracking vì nó ổn định nhất)
-                if bt_data and bt_data.get('result'):
+               # Xuất file Output mẫu (Ưu tiên A*, sau đó tới FC, cuối cùng mới tới Backtracking)
+                if astar_data and astar_data.get('success'):
+                    export_output(output_dir, filename, astar_data['result'], horiz, vert, N)
+                    print(f"   => Đã xuất kết quả ra {output_dir} (Dùng A*)")
+                elif fc_data and fc_data.get('success'):
+                    export_output(output_dir, filename, fc_data['result'], horiz, vert, N)
+                    print(f"   => Đã xuất kết quả ra {output_dir} (Dùng Forward Chaining)")
+                elif bt_data and bt_data.get('success'):
                     export_output(output_dir, filename, bt_data['result'], horiz, vert, N)
-                    print(f"   => Đã xuất kết quả ra {output_dir}")
+                    print(f"   => Đã xuất kết quả ra {output_dir} (Dùng Backtracking)")
+                else:
+                    print(f"   => KHÔNG XUẤT ĐƯỢC KẾT QUẢ (Tất cả thuật toán đều thất bại/timeout)")
 
             except Exception as e:
                 print(f"   [LỖI] {filename}: {str(e)}")
