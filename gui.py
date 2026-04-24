@@ -47,25 +47,16 @@ class FutoshikiGame:
         self.button_highlight_time = {}
         self.highlight_duration = 0.15
         self.stop_event = threading.Event()
-        
-        W, H = 130, 45
-        # Cột 1 (X=950), Cột 2 (X=1070)
-        # Hàng 1 (Y=620), Hàng 2 (Y=665)
-        self.buttons = {
-            "Solver": pygame.Rect(940, PANEL_Y + 10, W, H),
-            "Test":   pygame.Rect(1090, PANEL_Y + 10, W, H),
-            "Restart": pygame.Rect(940, PANEL_Y + 65, W, H),
-            "Quit":   pygame.Rect(1090, PANEL_Y + 65, W, H),
-        }
-        
+             
         # --- MENU SOLVER (Mọc lên trên nút Solver) ---
         self.solver_menu_open = False
         self.solver_selected = "Forward Chaining"
-        algo_names = ["Forward Chaining", "Backward Chaining", "A* Search", "Brute Force"]
+        algo_names = ["Forward Chaining", "Backward Chaining", "A* Search", "Backtracking", "Brute Force"]
         self.solver_menu = {}
         for i, algo in enumerate(algo_names):
             # Căn chỉnh theo X=940 của nút Solver
-            self.solver_menu[algo] = pygame.Rect(940, (PANEL_Y - 130) + i * 32, 160, 30)# Tăng W lên 145 để chứa vừa chữ "Backward Chaining"
+            self.solver_menu[algo] = pygame.Rect(930, (PANEL_Y - 170) + i * 32, 145, 30)# Tăng W lên 145 để chứa vừa chữ "Backward Chaining"
+            
         W, H = 145, 45 
         
         # Dời X của cột 1 sang 930 một chút để lấy chỗ cho nút to ra
@@ -77,20 +68,12 @@ class FutoshikiGame:
             "Quit":    pygame.Rect(1090, PANEL_Y + 65, W, H),
         }
         
-        # --- MENU SOLVER ---
-        self.solver_menu_open = False
-        self.solver_selected = "Forward Chaining"
-        algo_names = ["Forward Chaining", "Backward Chaining", "A* Search", "Brute Force"]
-        self.solver_menu = {}
-        for i, algo in enumerate(algo_names):
-            # Quan trọng: Dùng tọa độ X (930) và chiều rộng W giống y hệt nút Solver!
-            self.solver_menu[algo] = pygame.Rect(930, (PANEL_Y - 130) + i * 32, W, 30)
-            
+       
         # --- MENU TEST (Đọc từ folder Inputs) ---
         self.test_menu_open = False
         self.test_menu = {}
         self.test_menu_scroll_offset = 0
-        self.max_visible_tests = 4
+        self.max_visible_tests = 5
         self.load_testcases_to_menu()
         
         self.solver_running = False
@@ -204,33 +187,46 @@ class FutoshikiGame:
                 solver = BackwardChainingSolver(kb_gen)
                 data = solver.run()
                 
+            elif self.solver_selected == "Backtracking":
+                solver = FutoshikiBaseline(self.N, self.grid, self.horiz_constraints, self.vert_constraints, time_limit=30)
+                data = solver.run(mode="backtracking")
+                
             elif self.solver_selected == "Brute Force":
-                # Dùng Time limit = 10s để tránh treo GUI nếu N quá lớn
-                solver = FutoshikiBaseline(self.N, self.grid, self.horiz_constraints, self.vert_constraints, time_limit=10)
-                data = solver.run(mode="backtracking") 
+                # Gọi mode khác "backtracking" để baseline_solvers chạy brute force thuần túy
+                solver = FutoshikiBaseline(self.N, self.grid, self.horiz_constraints, self.vert_constraints, time_limit=30)
+                data = solver.run(mode="brute_force")
 
             # 3. Process the returned results (English Logs)
             if self.stop_event.is_set():
                 self.log.append("Action: Solver stopped by user.")
             else:
-                if data and "result" in data and data["result"] is not None:
-                    # Backward chaining check
-                    if any(0 in row for row in data["result"]) and self.solver_selected == "Backward Chaining":
-                        self.log.append("Result: Grid partially solved (Logic insufficient).")
-                    else:
+                if data:
+                    # 1. Trường hợp quá giờ (Riêng cho Backtracking / Brute Force)
+                    if data.get("timeout"):
+                        self.log.append(f"Result: TIMEOUT!")
+                        self.solved_grid = None # Xóa trắng kết quả ảo
+                        
+                    # 2. Trường hợp giải THÀNH CÔNG thực sự
+                    elif data.get("success"):
                         self.log.append(f"Result: Solved successfully using {self.solver_selected}")
-                    
-                    if "time" in data:
-                        self.log.append(f"Search time: {data['time']:.4f} seconds")
-                    if "memory" in data:
-                        self.log.append(f"Memory used: {data['memory']:.2f} MB")
-                    if "nodes" in data or "visited" in data:
-                        node_count = data.get("nodes", data.get("visited", "N/A"))
-                        self.log.append(f"Expanded nodes: {node_count}")
-
-                    self.solved_grid = data["result"]
+                        if "time" in data:
+                            self.log.append(f"Search time: {data['time']:.4f} seconds")
+                        if "nodes" in data or "visited" in data:
+                            node_count = data.get("nodes", data.get("visited", "N/A"))
+                            self.log.append(f"Expanded nodes: {node_count}")
+                            
+                        self.solved_grid = data["result"] # Chỉ cập nhật bảng khi thành công
+                        
+                    # 3. Trường hợp thất bại hoặc giải dang dở (Backward Chaining)
+                    else:
+                        if self.solver_selected == "Backward Chaining":
+                            self.log.append("Result: Grid partially solved (Logic insufficient).")
+                            self.solved_grid = data["result"] # Cho phép vẽ bảng dở dang
+                        else:
+                            self.log.append("Result: No solution found!")
+                            self.solved_grid = None
                 else:
-                    self.log.append("Result: No solution found or timeout reached!")
+                    self.log.append("Result: Error or no data returned!")
 
         except Exception as e:
             self.log.append(f"Error: {str(e)}")
@@ -250,7 +246,7 @@ class FutoshikiGame:
         if self.test_menu_open:
             visible_tests = list(self.test_menu.keys())[self.test_menu_scroll_offset:self.test_menu_scroll_offset + self.max_visible_tests]
             for idx, test_name in enumerate(visible_tests):
-                rect = pygame.Rect(1090, (PANEL_Y - 130) + idx * 32, 130, 30)
+                rect = pygame.Rect(1090, (PANEL_Y - 170) + idx * 32, 145, 30)
                 if rect.collidepoint(pos):
                     return f"TEST_{test_name}"
                     
@@ -279,7 +275,7 @@ class FutoshikiGame:
                     # Xử lý cuộn chuột
                     # Xử lý cuộn chuột
                     if event.button == 4:  # Scroll up
-                        test_menu_area = pygame.Rect(1090, PANEL_Y - 140, 150, 140)
+                        test_menu_area = pygame.Rect(1090, PANEL_Y - 180, 150, 170)
                         if self.test_menu_open and test_menu_area.collidepoint(event.pos):
                             self.test_menu_scroll_offset = max(0, self.test_menu_scroll_offset - 1)
                         # Cuộn log (nếu trỏ chuột vào log)
@@ -287,7 +283,7 @@ class FutoshikiGame:
                             self.log_offset = min(self.log_offset + 1, max(0, len(self.log) - self.max_log_lines))
                             
                     elif event.button == 5:  # Scroll down
-                        test_menu_area = pygame.Rect(1050, PANEL_Y - 140, 150, 140)
+                        test_menu_area = pygame.Rect(1090, PANEL_Y - 180, 150, 170)
                         if self.test_menu_open and test_menu_area.collidepoint(event.pos):
                             max_offset = max(0, len(self.test_menu) - self.max_visible_tests)
                             self.test_menu_scroll_offset = min(self.test_menu_scroll_offset + 1, max_offset)
@@ -410,15 +406,15 @@ class FutoshikiGame:
         if self.test_menu_open:
             visible_tests = list(self.test_menu.keys())[self.test_menu_scroll_offset:self.test_menu_scroll_offset + self.max_visible_tests]
             for idx, test_name in enumerate(visible_tests):
-                test_rect = pygame.Rect(1090, (PANEL_Y - 130) + idx * 32, 130, 30)
+                test_rect = pygame.Rect(1090, (PANEL_Y - 170) + idx * 32, 145, 30)
                 color = (200, 230, 150) if self.current_test_name == test_name else (255, 200, 230)
                 self.draw_rounded_rect_with_border(SCREEN, test_rect, color, (155, 50, 100), (255, 255, 255))
                 item_text = FONT.render(test_name, True, (155, 50, 100))
                 SCREEN.blit(item_text, item_text.get_rect(center=test_rect.center))
             
             if len(self.test_menu) > self.max_visible_tests:
-                scroll_bar_x, scroll_bar_y, scroll_bar_w = 1225, PANEL_Y - 130, 8
-                total_h = self.max_visible_tests * 32
+                scroll_bar_x, scroll_bar_y, scroll_bar_w = 1240, PANEL_Y - 165, 8
+                total_h = self.max_visible_tests * 30
                 pygame.draw.rect(SCREEN, (255, 200, 230), (scroll_bar_x, scroll_bar_y, scroll_bar_w, total_h))
                 max_offset = len(self.test_menu) - self.max_visible_tests
                 thumb_h = max(10, int(total_h * self.max_visible_tests / len(self.test_menu)))
