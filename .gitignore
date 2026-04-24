@@ -7,6 +7,5 @@ env/
 .vscode/
 .idea/
 
-
 log.txt
 backward_chaining.log
