@@ -11,7 +11,6 @@ class FutoshikiAStar:
         self.vert = vert
         self.nodes_expanded = 0
         self.process = psutil.Process(os.getpid())
-        # Tối ưu nhược điểm 1: Pre-calculate Degree
         self.degrees = [[self._calculate_degree(r, c) for c in range(n)] for r in range(n)]
 
     def _calculate_degree(self, r, c):
@@ -43,64 +42,111 @@ class FutoshikiAStar:
         mem_before = self.get_mem_usage()
         
         node_count = 0
-        h_start = sum(row.count(0) for row in self.grid)
-        # f = g + h, -g dùng để tie-break ưu tiên độ sâu
-        pq = [(h_start, 0, node_count, self.grid)]
+        # Chuyển bảng về dạng tuple 1D để tối ưu bộ nhớ và tốc độ so sánh
+        grid_1d = tuple(item for row in self.grid for item in row)
+        h_start = grid_1d.count(0)
+        
+        # Priority Queue: (f, -g, node_id, board_1d)
+        pq = [(h_start, 0, node_count, grid_1d)]
 
         while pq:
             f, neg_g, _, curr_board = heapq.heappop(pq)
             g = -neg_g
-            self.nodes_expanded += 1
             
-            # --- ĐIỀU KIỆN THẮNG (SỬA Ở ĐÂY) ---
-            # Chỉ dừng khi bảng thực sự đầy (không còn số 0)
-            if all(0 not in row for row in curr_board):
+            # 1. ĐIỀU KIỆN THẮNG: Chỉ thắng khi không còn số 0
+            if 0 not in curr_board:
+                res_2d = [list(curr_board[i:i+self.n]) for i in range(0, len(curr_board), self.n)]
                 return {
-                    "result": curr_board, 
+                    "result": res_2d, 
                     "nodes": self.nodes_expanded, 
                     "time": time.perf_counter() - start_time, 
                     "memory": self.get_mem_usage() - mem_before
                 }
 
-            # Tăng giới hạn nút lên để thuật toán có không gian tìm kiếm
-            if self.nodes_expanded > 20000: 
-                break 
+            self.nodes_expanded += 1
+            if self.nodes_expanded > 50000: break 
 
-            best_cell = None
+            best_idx = -1
             min_domain_size = float('inf')
             candidates = []
 
-            # --- MRV LOGIC ---
-            for r in range(self.n):
-                for c in range(self.n):
-                    if curr_board[r][c] == 0:
-                        domain = self.get_domain(r, c, curr_board)
-                        d_size = len(domain)
-                        
-                        if d_size == 0: # Nhánh này bị lỗi, domain rỗng
-                            min_domain_size = 0
-                            break
-                        
-                        if d_size < min_domain_size:
-                            min_domain_size = d_size
-                            best_cell = (r, c)
+            # 2. CHỌN Ô (MRV + DEGREE HEURISTIC)
+            for i in range(self.n * self.n):
+                if curr_board[i] == 0:
+                    r, c = divmod(i, self.n)
+                    # Kiểm tra domain đồng thời cả ngang và dọc
+                    domain = [v for v in range(1, self.n + 1) if self.is_valid_1d(i, v, curr_board)]
+                    d_size = len(domain)
+                    
+                    if d_size == 0:
+                        min_domain_size = 0
+                        break
+                    
+                    if d_size < min_domain_size:
+                        min_domain_size = d_size
+                        best_idx = i
+                        candidates = domain
+                    elif d_size == min_domain_size:
+                        # Tie-break bằng Degree Heuristic
+                        if best_idx == -1 or self.degrees[r][c] > self.degrees[best_idx // self.n][best_idx % self.n]:
+                            best_idx = i
                             candidates = domain
-                        if d_size == 1: break 
-                if min_domain_size == 0 or (best_cell and min_domain_size == 1): 
-                    break
-
-            # --- QUAY LUI (SỬA Ở ĐÂY) ---
-            # Nếu không tìm thấy ô nào để điền tiếp hoặc ô đó bị "tịt" (domain=0)
-            # THÌ PHẢI BỎ QUA để lấy nút khác từ PQ, không được return dở dang
-            if min_domain_size == 0 or best_cell is None:
+                    if d_size == 1: break 
+            
+            if min_domain_size == 0 or best_idx == -1:
                 continue
 
-            r, c = best_cell
+            # 3. FORWARD CHECKING
             for val in candidates:
-                new_board = [row[:] for row in curr_board]
-                new_board[r][c] = val
-                node_count += 1
-                h = sum(row.count(0) for row in new_board)
-                heapq.heappush(pq, (g + 1 + h, -(g + 1), node_count, new_board))
+                new_board_list = list(curr_board)
+                new_board_list[best_idx] = val
+                new_board = tuple(new_board_list)
+                
+                is_dead_end = False
+                for j in range(self.n * self.n):
+                    if new_board[j] == 0:
+                        # Kiểm tra xem ô j còn giá trị nào khả thi không
+                        has_value = any(self.is_valid_1d(j, v, new_board) for v in range(1, self.n + 1))
+                        if not has_value:
+                            is_dead_end = True
+                            break
+                
+                if not is_dead_end:
+                    node_count += 1
+                    h = new_board.count(0)
+                    heapq.heappush(pq, (g + 1 + h, -(g + 1), node_count, new_board))
         
         return None
+
+    def is_valid_1d(self, idx, val, board_1d):
+        r, c = divmod(idx, self.n)
+        row_start = r * self.n
+        
+        for i in range(self.n):
+            if i != c and board_1d[row_start + i] == val: return False
+            if i != r and board_1d[i * self.n + c] == val: return False
+        
+        # Ràng buộc ngang
+        if c > 0 and self.horiz[r][c-1] != 0:
+            left = board_1d[row_start + c - 1]
+            if left != 0:
+                if self.horiz[r][c-1] == 1 and not (left < val): return False
+                if self.horiz[r][c-1] == -1 and not (left > val): return False
+        if c < self.n - 1 and self.horiz[r][c] != 0:
+            right = board_1d[row_start + c + 1]
+            if right != 0:
+                if self.horiz[r][c] == 1 and not (val < right): return False
+                if self.horiz[r][c] == -1 and not (val > right): return False
+
+        # Ràng buộc dọc
+        if r > 0 and self.vert[r-1][c] != 0:
+            up = board_1d[(r-1) * self.n + c]
+            if up != 0:
+                if self.vert[r-1][c] == 1 and not (up < val): return False
+                if self.vert[r-1][c] == -1 and not (up > val): return False
+        if r < self.n - 1 and self.vert[r][c] != 0:
+            down = board_1d[(r+1) * self.n + c]
+            if down != 0:
+                if self.vert[r][c] == 1 and not (val < down): return False
+                if self.vert[r][c] == -1 and not (val > down): return False
+        return True
