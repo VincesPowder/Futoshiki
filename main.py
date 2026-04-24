@@ -58,7 +58,7 @@ def write_performance_log(log_path, filename, solver_name, data):
         f.write("Results:\n")
         f.write(f"  Solved: {is_solved}\n")
         f.write(f"  Solution length: {sol_length}\n")
-        f.write(f"  Expanded nodes: {data.get('nodes', 0)}\n")
+        f.write(f"  Expanded nodes/ Number of inferences: {data.get('nodes', 0)}\n")
         f.write(f"  Search time: {data.get('time', 0) * 1000:.2f}ms\n")
         f.write(f"  Memory used: {data.get('memory', 0):.4f}KB\n")
         f.write("-" * 40 + "\n")
