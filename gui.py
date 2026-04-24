@@ -205,6 +205,13 @@ class FutoshikiGame:
                     is_solved = data.get("success", False)
                     is_timeout = data.get("timeout", False)
                     
+                    if 'inferences' in data:
+                        metric_label = "Number of inferences"
+                        metric_value = data.get('inferences', 0)
+                    else:
+                        metric_label = "Expanded nodes"
+                        metric_value = data.get("nodes", data.get("visited", 0))
+                    
                     # Tính Solution length (Số ô đã điền)
                     sol_length = data.get("length", "N/A")
                     if sol_length == "N/A" and data.get("result"):
@@ -222,7 +229,7 @@ class FutoshikiGame:
                     
                     self.log.append(f"  Solved: {is_solved}")
                     self.log.append(f"  Solution length: {sol_length}")
-                    self.log.append(f"  Expanded nodes: {nodes}")
+                    self.log.append(f"  {metric_label}: {metric_value}")
                     self.log.append(f"  Search time: {time_ms:.2f}ms")
                     self.log.append(f"  Memory used: {memory_kb:.4f}KB")
                     

@@ -10,7 +10,7 @@ class BackwardChainingSolver:
         self.known_facts = set()
         self.inferred_atoms = {}
         self.log_path = log_path
-        self.node_count = 0 
+        self.inference_count = 0 
         
         self.literal_to_clauses = {}
         for idx, clause in enumerate(self.clauses):
@@ -38,7 +38,7 @@ class BackwardChainingSolver:
         return goal_name if not premises else f"{goal_name} ⇐ {' ∧ '.join(premises)}"
 
     def prove(self, goal_lit, visited=None, depth=0):
-        self.node_count += 1
+        self.inference_count += 1
         goal_name = self.decode_lit(goal_lit)
         if goal_lit in self.known_facts:
             self.write_log("FACT", f"Found: {goal_name} (Given clue)", depth)
@@ -107,6 +107,6 @@ class BackwardChainingSolver:
             "result": result,
             "time": end_time - start_time,
             "memory": peak / (1024),
-            "nodes": self.node_count,
+            "inferences": self.inference_count,
             "length": sum(1 for row in result for val in row if val != 0)
         }

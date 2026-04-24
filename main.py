@@ -53,12 +53,20 @@ def write_performance_log(log_path, filename, solver_name, data):
     elif data.get('length'):
         sol_length = data['length']
 
+    # Xác định nhãn và giá trị: Ưu tiên 'inferences' cho FC, 'nodes' cho các thuật toán tìm kiếm
+    if 'inferences' in data:
+        metric_label = "Number of inferences"
+        metric_value = data.get('inferences', 0)
+    else:
+        metric_label = "Expanded nodes"
+        metric_value = data.get('nodes', 0)
+
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] Test Case: {filename} | Solver: {solver_name}\n")
         f.write("Results:\n")
         f.write(f"  Solved: {is_solved}\n")
         f.write(f"  Solution length: {sol_length}\n")
-        f.write(f"  Expanded nodes/ Number of inferences: {data.get('nodes', 0)}\n")
+        f.write(f"  {metric_label}: {metric_value}\n") # Nhãn động thay đổi tùy thuật toán
         f.write(f"  Search time: {data.get('time', 0) * 1000:.2f}ms\n")
         f.write(f"  Memory used: {data.get('memory', 0):.4f}KB\n")
         f.write("-" * 40 + "\n")
