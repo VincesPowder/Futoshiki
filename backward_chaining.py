@@ -1,5 +1,5 @@
 import time
-import psutil
+import tracemalloc
 import os
 
 class BackwardChainingSolver:
@@ -90,18 +90,23 @@ class BackwardChainingSolver:
             f.write(f"### [PROCESS START]: {test_label} | Grid: {self.N}x{self.N}\n")
             f.write(f"{'#'*80}\n")
 
-        process = psutil.Process(os.getpid())
-        start_mem = process.memory_info().rss / (1024 * 1024)
+       # Bắt đầu theo dõi đỉnh bộ nhớ
+        tracemalloc.start() 
         start_time = time.time()
+        
         result = self.solve()
+        
         end_time = time.time()
-        end_mem = process.memory_info().rss / (1024 * 1024)
+        
+        # Lấy peak memory và dừng theo dõi
+        _, peak = tracemalloc.get_traced_memory() 
+        tracemalloc.stop()
         
         return {
             "success": any(0 not in row for row in result),
             "result": result,
             "time": end_time - start_time,
-            "memory": max(0, end_mem - start_mem),
+            "memory": peak / (1024),
             "nodes": self.node_count,
             "length": sum(1 for row in result for val in row if val != 0)
         }

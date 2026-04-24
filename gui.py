@@ -188,12 +188,12 @@ class FutoshikiGame:
                 data = solver.run()
                 
             elif self.solver_selected == "Backtracking":
-                solver = FutoshikiBaseline(self.N, self.grid, self.horiz_constraints, self.vert_constraints, time_limit=30)
+                solver = FutoshikiBaseline(self.N, self.grid, self.horiz_constraints, self.vert_constraints, time_limit=10)
                 data = solver.run(mode="backtracking")
                 
             elif self.solver_selected == "Brute Force":
                 # Gọi mode khác "backtracking" để baseline_solvers chạy brute force thuần túy
-                solver = FutoshikiBaseline(self.N, self.grid, self.horiz_constraints, self.vert_constraints, time_limit=30)
+                solver = FutoshikiBaseline(self.N, self.grid, self.horiz_constraints, self.vert_constraints, time_limit=10)
                 data = solver.run(mode="brute_force")
 
             # 3. Process the returned results (English Logs)
@@ -201,30 +201,40 @@ class FutoshikiGame:
                 self.log.append("Action: Solver stopped by user.")
             else:
                 if data:
-                    # 1. Trường hợp quá giờ (Riêng cho Backtracking / Brute Force)
-                    if data.get("timeout"):
-                        self.log.append(f"Result: TIMEOUT!")
-                        self.solved_grid = None # Xóa trắng kết quả ảo
+                    # Rút trích và tính toán các chỉ số
+                    is_solved = data.get("success", False)
+                    is_timeout = data.get("timeout", False)
+                    
+                    # Tính Solution length (Số ô đã điền)
+                    sol_length = data.get("length", "N/A")
+                    if sol_length == "N/A" and data.get("result"):
+                        sol_length = sum(1 for row in data["result"] for val in row if val != 0)
                         
-                    # 2. Trường hợp giải THÀNH CÔNG thực sự
-                    elif data.get("success"):
-                        self.log.append(f"Result: Solved successfully using {self.solver_selected}")
-                        if "time" in data:
-                            self.log.append(f"Search time: {data['time']:.4f} seconds")
-                        if "nodes" in data or "visited" in data:
-                            node_count = data.get("nodes", data.get("visited", "N/A"))
-                            self.log.append(f"Expanded nodes: {node_count}")
-                            
-                        self.solved_grid = data["result"] # Chỉ cập nhật bảng khi thành công
-                        
-                    # 3. Trường hợp thất bại hoặc giải dang dở (Backward Chaining)
+                    nodes = data.get("nodes", data.get("visited", 0))
+                    time_ms = data.get("time", 0) * 1000  # Đổi sang ms
+                    memory_kb = data.get("memory", 0)     # Mặc định đang là KB do đã sửa trước đó
+
+                    # Format log nhiều dòng giống hệt text
+                    if is_timeout:
+                        self.log.append("Results: TIMEOUT (> 10s)")
                     else:
-                        if self.solver_selected == "Backward Chaining":
-                            self.log.append("Result: Grid partially solved (Logic insufficient).")
-                            self.solved_grid = data["result"] # Cho phép vẽ bảng dở dang
-                        else:
-                            self.log.append("Result: No solution found!")
-                            self.solved_grid = None
+                        self.log.append("Results:")
+                    
+                    self.log.append(f"  Solved: {is_solved}")
+                    self.log.append(f"  Solution length: {sol_length}")
+                    self.log.append(f"  Expanded nodes: {nodes}")
+                    self.log.append(f"  Search time: {time_ms:.2f}ms")
+                    self.log.append(f"  Memory used: {memory_kb:.4f}KB")
+                    
+                    # Cập nhật lưới hiển thị (Grid)
+                    if is_timeout:
+                        self.solved_grid = None
+                    elif is_solved:
+                        self.solved_grid = data["result"]
+                    elif self.solver_selected == "Backward Chaining":
+                        self.solved_grid = data.get("result") # Vẫn hiện bảng dang dở
+                    else:
+                        self.solved_grid = None
                 else:
                     self.log.append("Result: Error or no data returned!")
 

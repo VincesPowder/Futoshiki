@@ -316,7 +316,7 @@ class ForwardChaining:
         return {
             'result'    : result,
             'time'      : elapsed,
-            'memory'    : peak / (1024 * 1024),
+            'memory'    : peak / 1024,
             'inferences': self.inference_count,
             'success'   : ok,
         }

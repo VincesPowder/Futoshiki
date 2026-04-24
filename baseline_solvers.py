@@ -1,9 +1,9 @@
 import time
-import psutil
+import tracemalloc
 import os
 
 class FutoshikiBaseline:
-    def __init__(self, N, grid, horiz, vert, time_limit=30):
+    def __init__(self, N, grid, horiz, vert, time_limit=10):
         """
         Khởi tạo solver với giới hạn thời gian chạy.
         time_limit: Thời gian tối đa cho phép (giây). 
@@ -104,8 +104,8 @@ class FutoshikiBaseline:
     def run(self, mode="backtracking"):
         self.reset_grid()
         self.start_time = time.time()
-        process = psutil.Process(os.getpid())
-        start_mem = process.memory_info().rss / (1024 * 1024)
+        tracemalloc.start()
+
         
         if mode == "backtracking":
             success = self.solve_backtracking()
@@ -113,7 +113,8 @@ class FutoshikiBaseline:
             success = self.solve_brute_force()
             
         end_time = time.time()
-        end_mem = process.memory_info().rss / (1024 * 1024)
+        _, peak = tracemalloc.get_traced_memory() # <--- LẤY PEAK
+        tracemalloc.stop()
         
         return {
             "success": success and not self.is_timeout,
@@ -121,6 +122,6 @@ class FutoshikiBaseline:
             "result": self.grid,
             "nodes": self.nodes_expanded,
             "time": end_time - self.start_time,
-            "memory": max(0, end_mem - start_mem),
+            "memory": peak / 1024,
             "mode": mode
         }
