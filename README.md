@@ -80,7 +80,6 @@ python main.py
 **2. Command Line Interface (CLI - Batch processing) Mode:**
 * When running `main.py`, the program will automatically read and process all test cases located in the `Inputs/` directory.
 * It executes all implemented algorithms sequentially for each test case.
-* Performance metrics are printed to the console in real-time during execution.
 * The full execution summary is automatically saved to `log.txt`, and the successfully solved puzzle grids are exported to the `Outputs/` folder.
 
 ## Output
