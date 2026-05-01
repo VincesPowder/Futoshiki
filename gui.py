@@ -11,7 +11,6 @@ from baseline_solvers import FutoshikiBaseline
 from backward_chaining import BackwardChainingSolver
 from kb_generator import KBGenerator
 # ---------------------------------------------
-
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 PANEL_Y = 600
