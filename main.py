@@ -2,8 +2,6 @@ import os
 import time
 from datetime import datetime
 from kb_generator import KBGenerator
-
-# Import các solver từ project của ông
 from a_star import FutoshikiAStar
 from baseline_solvers import FutoshikiBaseline
 from forward_chaining import ForwardChaining
@@ -136,9 +134,6 @@ def main():
                 bf_data = baseline.run(mode="brute_force")
                 write_performance_log(summary_log, filename, "Brute-force", bf_data)
                 
-                
-
-               # Xuất file Output mẫu (Ưu tiên A*, sau đó tới FC, cuối cùng mới tới Backtracking)
                 if astar_data and astar_data.get('success'):
                     export_output(output_dir, filename, astar_data['result'], horiz, vert, N)
                     print(f"   => Đã xuất kết quả ra {output_dir} (Dùng A*)")

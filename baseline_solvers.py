@@ -113,7 +113,7 @@ class FutoshikiBaseline:
             success = self.solve_brute_force()
             
         end_time = time.time()
-        _, peak = tracemalloc.get_traced_memory() # <--- LẤY PEAK
+        _, peak = tracemalloc.get_traced_memory() 
         tracemalloc.stop()
         
         return {
